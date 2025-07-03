@@ -141,9 +141,9 @@ svgpathtools==1.7.1
 svgwrite==1.4.3
 sympy==1.14.0
 tifffile==2024.8.30
-torch==2.7.0+cu118
-torchaudio==2.7.0+cu118
-torchvision==0.22.0+cu118
+torch==2.7.0
+torchvision==0.22.0
+torchaudio==2.7.0
 tornado==6.4
 tqdm==4.67.1
 traitlets==5.9.0
