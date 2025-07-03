@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Art Rendering</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+    <style>
+        body {
+            margin: 0;
+            background-color: #0f1117;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+        }
+
+        .container-flex {
+            display: flex;
+            height: 100vh;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .panel {
+            background-color: #1c1f26;
+            padding: 20px;
+            border-radius: 12px;
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .panel h4 {
+            margin-bottom: 20px;
+        }
+
+        /* 30% for input panel */
+        .container-flex .panel:first-child {
+            flex: 3;
+        }
+
+        /* 70% for output panel */
+        .container-flex .panel:last-child {
+            flex: 7;
+        }
+
+        .image-stack {
+            display: flex;
+            flex-direction: column;
+            height: 50%;
+            /* or a fixed height like 400px */
+            gap: 0.5rem;
+            flex-grow: 1;
+        }
+
+        #inputArea {
+            flex: 1;
+            border: 2px dashed #444;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ccc;
+            font-size: 1rem;
+            cursor: pointer;
+            min-height: 150px;
+        }
+
+        #secondInputArea {
+            display: none;
+            /* initially hidden */
+            flex: 1;
+            border: 2px dashed #444;
+            border-radius: 12px;
+            justify-content: center;
+            align-items: center;
+            color: #000;
+            /* dark text for visibility */
+            background-color: #ffffff;
+            /* white background */
+            font-size: 1rem;
+            cursor: pointer;
+            min-height: 150px;
+        }
+
+
+        /* Optional: Ensure inputArea and outputArea grow inside panel */
+        #outputArea {
+            flex: 1;
+            border: 2px dashed #444;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ccc;
+            font-size: 1rem;
+            cursor: pointer;
+            min-height: 200px;
+            /* optional */
+        }
+
+        #inputArea img,
+        #secondInputArea img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+
+        }
+
+
+        .button-row {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn {
+            padding: 8px 14px;
+            background-color: #f3f4f6;
+            color: #000;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            font-size: 0.9rem;
+        }
+
+        .mode-btn:hover {
+            background-color: #e0e0e0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .btn-submit {
+            background-color: #f97316;
+            color: white;
+            border: none;
+        }
+
+        .btn-submit:hover {
+            background-color: #ea580c;
+        }
+
+        .btn-clear {
+            background-color: #374151;
+            color: white;
+            border: none;
+        }
+
+        .btn-clear:hover {
+            background-color: #4b5563;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-flex">
+        <!-- Input Panel -->
+        <div class="panel">
+            <h4>Selected Image</h4>
+            <div class="image-stack">
+                <div id="inputArea">Drop Image Here<br>or<br>Click to Upload</div>
+                <div id="secondInputArea">Sketch/Color svg image display</div>
+            </div>
+            <div class="mt-3">
+                <label class="mb-2 d-block">Modes</label>
+                <div class="btn-group mb-3" role="group" aria-label="Mode Selection">
+                    <button type="button" class="btn btn-outline-primary mode-btn" data-mode="color">Color</button>
+                    <button type="button" class="btn btn-outline-primary mode-btn" data-mode="sketch">Sketch</button>
+                    <button type="button" class="btn btn-outline-primary mode-btn" data-mode="layered">Layered</button>
+                    <button type="button" class="btn btn-outline-primary mode-btn" data-mode="sketchNpaint">Sketch &
+                        Paint</button>
+                </div>
+            </div>
+            <div class="action-buttons">
+                <button class="btn btn-submit w-100" onclick="handleSubmit()">Submit</button>
+                <button class="btn btn-clear w-100" onclick="handleClear()">Clear</button>
+            </div>
+        </div>
+
+        <!-- Output Panel -->
+        <div class="panel">
+            <h4>Rendering</h4>
+            <div id="outputArea"><i class="bi bi-image"></i> Output will appear here</div>
+        </div>
+    </div>
+
+    <script>
+        let selectedMode = null;
+        let controller = null;
+        let lastImgSrc = null;
+        let lastFilename = null;
+        let isUploaded = false;
+        let uploadedFile = null;
+
+        const inputArea = document.getElementById("inputArea");
+        const outputArea = document.getElementById("outputArea");
+        const modeButtons = document.querySelectorAll(".mode-btn");
+
+        // --- Mode Selection ---
+        modeButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                modeButtons.forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                selectedMode = btn.getAttribute("data-mode");
+            });
+        });
+
+        // --- Submit Button ---
+        async function handleSubmit() {
+            if (!selectedMode) {
+                alert("Please select a mode first.");
+                return;
+            }
+            if (!lastImgSrc || !lastFilename) {
+                alert("Please select or upload an image first.");
+                return;
+            }
+
+            // Log mode selection
+            try {
+                await fetch("/api/log_mode", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ mode: selectedMode }),
+                });
+            } catch (logError) {
+                console.warn("Mode logging failed:", logError);
+            }
+
+            controller = new AbortController();
+            const signal = controller.signal;
+
+            try {
+                const formData = new FormData();
+                if (isUploaded && uploadedFile) {
+                    formData.append("image", uploadedFile);
+                } else {
+                    const res = await fetch(lastImgSrc, { signal });
+                    const blob = await res.blob();
+                    formData.append("image", new File([blob], lastFilename));
+                }
+
+                // Grayscale check
+                let isGrayscale = false;
+
+                // Perform grayscale check for relevant modes
+                if (["color", "sketch", "sketchNpaint"].includes(selectedMode)) {
+                    const grayCheck = await fetch("/api/is_grayscale", {
+                        method: "POST",
+                        body: formData,
+                        signal,
+                    });
+                    const result = await grayCheck.json();
+                    isGrayscale = result.is_grayscale;
+
+                    if (selectedMode === "color" && isGrayscale) {
+                        alert("Selected image is NOT RGB. Color mode not allowed.");
+                        return;
+                    }
+                    if (selectedMode === "sketchNpaint" && isGrayscale) {
+                        alert("Image must be RGB for Sketch & Paint.");
+                        return;
+                    }
+                }
+
+                // Choose correct endpoint
+                let endpoint = "";
+                switch (selectedMode) {
+                    case "color":
+                        endpoint = "/api/convert_to_svg";
+                        break;
+                    case "sketch":
+                        endpoint = isGrayscale
+                            ? "/api/convert_sketch_to_svg"
+                            : "/api/convert_color_to_sketch_to_svg";
+                        break;
+                    case "layered":
+                        endpoint = "/api/convert_layered_to_svg";
+                        break;
+                    case "sketchNpaint":
+                        endpoint = "/api/convert_sketchNpaint_to_svg";
+                        break;
+                }
+
+
+                const svgFormData = new FormData();
+                if (isUploaded && uploadedFile) {
+                    svgFormData.append("image", uploadedFile);
+                } else {
+                    const res = await fetch(lastImgSrc, { signal });
+                    const blob = await res.blob();
+                    svgFormData.append("image", new File([blob], lastFilename));
+                }
+
+                const response = await fetch(endpoint, {
+                    method: "POST",
+                    body: svgFormData,
+                    signal,
+                });
+
+                const result = await response.json();
+                if (!result.success) {
+                    alert("SVG conversion failed: " + result.error);
+                    return;
+                }
+
+                // Get base filename
+                const baseName = lastFilename.substring(0, lastFilename.lastIndexOf('.'));
+
+                // --- HTML rendering ---
+                let modeFolder = "";
+                let modeFile = "";
+                switch (selectedMode) {
+                    case "color":
+                        modeFolder = "animate_color_output";
+                        modeFile = `animate_sequence-${baseName}.html`;
+                        break;
+                    case "sketch":
+                        modeFolder = "animate_sketch_output";
+                        modeFile = `animate_sequence-${baseName}.html`;
+                        break;
+                    case "layered":
+                        modeFolder = "animate_layered_output";
+                        modeFile = `animate_${baseName}.html`;
+                        break;
+                    case "sketchNpaint":
+                        modeFolder = "animate_sNp_output";
+                        modeFile = `animate_sequence-${baseName}-combined.html`;
+                        break;
+                }
+
+                const iframe = document.createElement("iframe");
+                iframe.src = `/static/${modeFolder}/${modeFile}`;
+                iframe.style.width = "100%";
+                iframe.style.height = "100%";
+                iframe.style.border = "none";
+
+                outputArea.innerHTML = "";
+                outputArea.appendChild(iframe);
+
+                // --- SVG preview rendering ---
+                const secondBox = document.getElementById("secondInputArea");
+                secondBox.style.display = "flex";
+
+                let svgFolder, svgFile;
+
+                if (selectedMode === "sketchNpaint") {
+                    svgFolder = "svg_sNp_sketch";
+                    svgFile = `${baseName}_sketch.svg`;
+                } else {
+                    svgFolder = `svg_${selectedMode}`;
+                    svgFile = `${baseName}.svg`;
+                }
+
+                const svgPath = `/static/${svgFolder}/${svgFile}`;
+                secondBox.innerHTML = `<img src="${svgPath}" alt="SVG Preview" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`;
+
+            } catch (err) {
+                if (err.name === "AbortError") {
+                    console.warn("Process aborted.");
+                    return;
+                }
+                console.error("Error:", err);
+                alert("Something went wrong.");
+            }
+        }
+
+        // --- Clear Button ---
+        function handleClear() {
+            if (controller) controller.abort();
+
+            lastImgSrc = null;
+            lastFilename = null;
+            isUploaded = false;
+            uploadedFile = null;
+            selectedMode = null;
+
+            modeButtons.forEach(btn => btn.classList.remove("active"));
+            inputArea.innerHTML = "Drop Image Here<br>or<br>Click to Upload";
+            outputArea.innerHTML = `<i class="bi bi-image"></i> Output will appear here`;
+
+            const secondBox = document.getElementById("secondInputArea");
+            secondBox.style.display = "none";
+            secondBox.innerHTML = ""; // optional: clear its content
+        }
+
+        // --- Image Drop or Click Upload ---
+        inputArea.addEventListener("click", () => {
+            const fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.accept = "image/*";
+            fileInput.onchange = () => {
+                const file = fileInput.files[0];
+                if (!file) return;
+                uploadedFile = file;
+                lastFilename = file.name;
+                isUploaded = true;
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                    lastImgSrc = reader.result;
+                    const img = document.createElement("img");
+                    img.src = reader.result;
+                    img.className = "img-fluid rounded";
+                    inputArea.innerHTML = "";
+                    inputArea.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            };
+            fileInput.click();
+        });
+    </script>
+
+
+
+
+
+    <!-- JavaScript: Handles image loading, rendering, and interactivity -->
+
+
+</body>
+
+</html>

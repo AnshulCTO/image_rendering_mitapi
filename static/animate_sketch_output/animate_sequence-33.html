@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SVG Animation</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background: #fff;
+      font-family: sans-serif;
+    }
+    .svg-wrapper {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    object#svgObject {
+      width: 98vw;
+      height: 98vh;
+      border: none;
+      background-color: white;
+    }
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      z-index: 10;
+    }
+    .controls button {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #333;
+    }
+    .controls input[type="range"] {
+      width: 150px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="svg-wrapper">
+  <object id="svgObject" type="image/svg+xml" data="/static\seq_svg_sketch\sequence-33.svg"></object>
+</div>
+
+<div class="controls">
+  <button id="replayBtn" title="Replay"><i class="fas fa-rotate-right"></i></button>
+  <button id="playPauseBtn" title="Play"><i class="fas fa-play"></i></button>
+  <button id="backwardBtn" title="Backward 5 Strokes">⏮</button>
+  <button id="forwardBtn" title="Forward 5 Strokes">⏭</button>
+  <select id="speedSelect" title="Speed">
+    <option value="0.5">0.5x</option>
+    <option value="1">1.0x</option>
+    <option value="2">2.0x</option>
+    <option value="3">3.0x</option>
+    <option value="5">5.0x</option>
+    <option value="10" selected>10.0x</option>
+  </select>
+  <input type="range" id="progressBar" value="0" min="0" max="100">
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const svgObject = document.getElementById("svgObject");
+
+  svgObject.addEventListener("load", () => {
+    const svgDoc = svgObject.contentDocument;
+    const svg = svgDoc.querySelector("svg");
+    const paths = svg.querySelectorAll("path");
+
+    const playPauseBtn = document.getElementById("playPauseBtn");
+    const replayBtn = document.getElementById("replayBtn");
+    const progressBar = document.getElementById("progressBar");
+    const forwardBtn = document.getElementById("forwardBtn");
+    const backwardBtn = document.getElementById("backwardBtn");
+    const speedSelect = document.getElementById("speedSelect");
+
+    let isPlaying = false;
+    let elapsedTime = 0;
+    let animationFrameId;
+    let speed = parseFloat(speedSelect.value) || 10.0;
+
+    const pathDelay = 500;
+    const totalAnimationDuration = paths.length * pathDelay;
+
+    paths.forEach(path => {
+      const length = path.getTotalLength();
+      path.dataset.length = length;
+      path.style.strokeDasharray = length;
+      path.style.strokeDashoffset = length;
+      path.style.fillOpacity = 0;
+    });
+
+    function setProgress(progress) {
+      paths.forEach((path, index) => {
+        const length = parseFloat(path.dataset.length);
+        const startTime = index * pathDelay;
+        const endTime = startTime + pathDelay;
+        const time = progress * totalAnimationDuration;
+
+        if (time < startTime) {
+          path.style.strokeDashoffset = length;
+          path.style.fillOpacity = 0;
+        } else if (time <= endTime) {
+          const localProgress = (time - startTime) / pathDelay;
+          path.style.strokeDashoffset = length * (1 - localProgress);
+          path.style.fillOpacity = localProgress;
+        } else {
+          path.style.strokeDashoffset = 0;
+          path.style.fillOpacity = 1;
+        }
+      });
+    }
+
+    function setElapsedTime(newTime) {
+      elapsedTime = Math.max(0, Math.min(newTime, totalAnimationDuration));
+      setProgress(elapsedTime / totalAnimationDuration);
+      progressBar.value = (elapsedTime / totalAnimationDuration) * 100;
+    }
+
+    function playAnimation() {
+      isPlaying = true;
+      playPauseBtn.innerHTML = '<i class="fas fa-pause"></i>';
+      let startTime = null;
+
+      function animate(currentTime) {
+        if (!startTime) startTime = currentTime - elapsedTime / speed;
+        elapsedTime = (currentTime - startTime) * speed;
+
+        const progress = elapsedTime / totalAnimationDuration;
+        setProgress(progress);
+        progressBar.value = Math.min(progress * 100, 100);
+
+        if (progress < 1 && isPlaying) {
+          animationFrameId = requestAnimationFrame(animate);
+        } else {
+          isPlaying = false;
+          playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+          elapsedTime = 0;
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    }
+
+    function pauseAnimation() {
+      isPlaying = false;
+      playPauseBtn.innerHTML = '<i class="fas fa-play"></i>';
+      cancelAnimationFrame(animationFrameId);
+    }
+
+    playPauseBtn.addEventListener("click", () => {
+      if (isPlaying) pauseAnimation();
+      else playAnimation();
+    });
+
+    replayBtn.addEventListener("click", () => {
+      elapsedTime = 0;
+      setProgress(0);
+      progressBar.value = 0;
+      cancelAnimationFrame(animationFrameId);
+      playAnimation();
+    });
+
+    progressBar.addEventListener("input", () => {
+      const progress = parseFloat(progressBar.value) / 100;
+      elapsedTime = progress * totalAnimationDuration;
+      setProgress(progress);
+      pauseAnimation();
+    });
+
+    forwardBtn.addEventListener("click", () => {
+      setElapsedTime(elapsedTime + 5 * pathDelay);
+    });
+
+    backwardBtn.addEventListener("click", () => {
+      setElapsedTime(elapsedTime - 5 * pathDelay);
+    });
+
+    speedSelect.addEventListener("change", () => {
+      speed = parseFloat(speedSelect.value);
+      if (isPlaying) {
+        pauseAnimation();
+        playAnimation();
+      }
+    });
+  });
+});
+</script>
+
+</body>
+</html>

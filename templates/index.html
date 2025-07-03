@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SVG Viewer</title>
+
+    <!--Bootstrap CSS for layout and components-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+    <!--Custom styles for layout and visuals-->
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #mainLayout {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Left Panel: Image selection and controls */
+        #selectionPanel {
+            width: 350px;
+            background-color: #ffffff;
+            border-right: 2px solid #141414;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .thumb {
+            width: 40px;
+            height: 40px;
+            object-fit: cover;
+            border: 2px solid #dde6ed;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .thumb:hover {
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .selected-img {
+            width: 100%;
+            max-height: 100px;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .mode-btn {
+            padding: 4px 8px;
+            background-color: #f3f4f6;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            font-size: 0.8rem;
+        }
+
+        .mode-btn:hover {
+            background-color: #e5e7eb;
+        }
+
+        .label-text {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .divider {
+            height: 2px;
+            background-color: #141414;
+            opacity: 0.6;
+        }
+
+        /* Right Panel: Render viewer */
+        #renderingPanel {
+            flex-grow: 1;
+            background-color: #e8f0fe;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #renderContainer {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="mainLayout">
+
+        <!-- Left Panel -->
+        <div id="selectionPanel">
+
+            <!-- Image Upload Section -->
+            <div>
+                <label for="fileInput" class="form-label fw-semibold">Select Image</label>
+                <input type="file" id="fileInput" class="form-control mb-2" accept=".png,.jpg,.jpeg" />
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="mode-btn" onclick="handleMode('sketch')">Sketch</button>
+                    <button class="mode-btn" onclick="handleMode('color')">Paint</button>
+                    <button class="mode-btn" onclick="handleMode('layered')">Layered</button>
+                    <button class="mode-btn" onclick="handleMode('sketchNpaint')">Sketch & Paint</button>
+                </div>
+            </div>
+
+            <div class="divider my-3"></div>
+
+            <!-- Thumbnails -->
+            <div>
+                <div id="thumbnailList" class="d-flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="divider my-3"></div>
+
+            <!-- Selected Image Preview -->
+            <div id="renderSection" class="preview-section d-none">
+                <div class="panel">
+                    <div class="label-text mb-2">Image Selected/Uploaded</div>
+                    <div id="imageBox"></div>
+                </div>
+                <div class="mt-3">
+                    <button id="renderBtn" class="btn btn-outline-primary" onclick="openRenderPage()">Render in New
+                        Tab</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div id="renderingPanel">
+            <div id="renderContainer">
+                <div class="text-muted">Rendering panel</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedMode = null;
+        const thumbContainer = document.getElementById("thumbnailList");
+        const imageBox = document.getElementById("imageBox");
+        const fileInput = document.getElementById("fileInput");
+        const renderBtn = document.getElementById("renderBtn");
+
+        let lastImgSrc = null;
+        let lastFilename = null;
+        let isUploaded = false;
+        let uploadedFile = null; // Store actual File object if uploaded
+
+        renderBtn.disabled = true;
+
+        // Load thumbnails
+        fetch('/api/thumbnails')
+            .then(response => response.json())
+            .then(images => {
+                images.forEach(img => {
+                    const thumb = document.createElement("img");
+                    thumb.src = `/static/thumbnails/${img}`;
+                    thumb.className = "thumb";
+                    thumb.title = "Click to select";
+
+                    thumb.onclick = () => {
+                        renderImage(`/static/thumbnails/${img}`, img, false, null);
+                    };
+
+                    thumbContainer.appendChild(thumb);
+                });
+            })
+            .catch(err => console.error("Error fetching thumbnails:", err));
+
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            uploadedFile = file;
+            const reader = new FileReader();
+            reader.onload = () => {
+                renderImage(reader.result, file.name, true, file);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function renderImage(imgSrc, filename, uploaded, fileObj = null) {
+            lastImgSrc = imgSrc;
+            lastFilename = filename;
+            isUploaded = uploaded;
+            if (fileObj) uploadedFile = fileObj;
+
+            document.getElementById("renderSection").classList.remove("d-none");
+            renderBtn.disabled = true;
+
+            const imgTag = document.createElement("img");
+            imgTag.src = imgSrc;
+            imgTag.alt = "Selected Image";
+            imgTag.className = "selected-img";
+
+            imgTag.onload = () => {
+                imageBox.innerHTML = "";
+                imageBox.appendChild(imgTag);
+            };
+        }
+
+        async function handleMode(mode) {
+            selectedMode = mode;
+            if (!lastImgSrc || !lastFilename) {
+                alert("Please select or upload an image first.");
+                return;
+            }
+            fetch("/api/log_mode", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ mode: mode }),
+            });
+
+            if (mode === "color") {
+                try {
+                    const formData = new FormData();
+
+                    if (isUploaded && uploadedFile) {
+                        formData.append("image", uploadedFile);
+                    } else {
+                        const res = await fetch(lastImgSrc);
+                        const blob = await res.blob();
+                        formData.append("image", new File([blob], lastFilename));
+                    }
+
+                    // Check if the image is grayscale
+                    const response = await fetch("/api/is_grayscale", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.is_grayscale) {
+                        alert("Selected image is NOT RGB. Color mode is not allowed.");
+                        location.reload();
+                        return;
+                    }
+
+                    // If not grayscale, proceed to convert to SVG
+                    const svgFormData = new FormData();
+                    if (isUploaded && uploadedFile) {
+                        svgFormData.append("image", uploadedFile);
+                    } else {
+                        const res = await fetch(lastImgSrc);
+                        const blob = await res.blob();
+                        svgFormData.append("image", new File([blob], lastFilename));
+                    }
+
+                    const svgResponse = await fetch("/api/convert_to_svg", {
+                        method: "POST",
+                        body: svgFormData
+                    });
+
+                    const svgResult = await svgResponse.json();
+
+                    if (!svgResult.success) {
+                        alert("SVG conversion failed: " + svgResult.error);
+                    }
+
+                } catch (err) {
+                    console.error("Error during color mode processing:", err);
+                    alert("Failed to process color mode.");
+                }
+                //stroke generation
+
+
+            }
+
+
+            if (mode === "sketch") {
+                try {
+                    const formData = new FormData();
+
+                    if (isUploaded && uploadedFile) {
+                        formData.append("image", uploadedFile);
+                    } else {
+                        const res = await fetch(lastImgSrc);
+                        const blob = await res.blob();
+                        formData.append("image", new File([blob], lastFilename));
+                    }
+
+                    const response = await fetch("/api/is_grayscale", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (!result.is_grayscale) {
+                        const svgFormData = new FormData();
+                        if (isUploaded && uploadedFile) {
+                            svgFormData.append("image", uploadedFile);
+                        } else {
+                            const res = await fetch(lastImgSrc);
+                            const blob = await res.blob();
+                            svgFormData.append("image", new File([blob], lastFilename));
+                        }
+
+                        const svgResponse = await fetch("/api/convert_color_to_sketch_to_svg", {
+                            method: "POST",
+                            body: svgFormData
+                        });
+
+                        const svgResult = await svgResponse.json();
+                        if (!svgResult.success) {
+                            alert("Sketch SVG conversion failed: " + svgResult.error);
+                            return;
+                        }
+                    }
+                    else {
+                        const svgFormData = new FormData();
+                        if (isUploaded && uploadedFile) {
+                            svgFormData.append("image", uploadedFile);
+                        } else {
+                            const res = await fetch(lastImgSrc);
+                            const blob = await res.blob();
+                            svgFormData.append("image", new File([blob], lastFilename));
+                        }
+
+                        const svgResponse = await fetch("/api/convert_sketch_to_svg", {
+                            method: "POST",
+                            body: svgFormData
+                        });
+
+                        const svgResult = await svgResponse.json();
+                        if (!svgResult.success) {
+                            alert("Sketch SVG conversion failed: " + svgResult.error);
+                            return;
+                        }
+
+                    }
+                    // ✅ Call sketch-to-SVG pipeline
+
+
+                } catch (err) {
+                    console.error("Sketch mode processing failed:", err);
+                    alert("Error processing sketch mode.");
+                }
+            }
+            if (mode === "layered") {
+                try {
+                    const formData = new FormData();
+
+                    if (isUploaded && uploadedFile) {
+                        formData.append("image", uploadedFile);
+                    } else {
+                        const res = await fetch(lastImgSrc);
+                        const blob = await res.blob();
+                        formData.append("image", new File([blob], lastFilename));
+                    }
+
+
+
+                    // ✅ Call sketch-to-SVG pipeline
+                    const svgFormData = new FormData();
+                    if (isUploaded && uploadedFile) {
+                        svgFormData.append("image", uploadedFile);
+                    } else {
+                        const res = await fetch(lastImgSrc);
+                        const blob = await res.blob();
+                        svgFormData.append("image", new File([blob], lastFilename));
+                    }
+
+                    const svgResponse = await fetch("/api/convert_layered_to_svg", {
+                        method: "POST",
+                        body: svgFormData
+                    });
+
+                    const svgResult = await svgResponse.json();
+                    if (!svgResult.success) {
+                        alert("Sketch SVG conversion failed: " + svgResult.error);
+                        return;
+                    }
+
+                } catch (err) {
+                    console.error("Sketch mode processing failed:", err);
+                    alert("Error processing sketch mode.");
+                }
+            }
+
+            if (mode === "sketchNpaint") {
+                try {
+                    const formData = new FormData();
+
+                    if (isUploaded && uploadedFile) {
+                        formData.append("image", uploadedFile);
+                    } else {
+                        const res = await fetch(lastImgSrc);
+                        const blob = await res.blob();
+                        formData.append("image", new File([blob], lastFilename));
+                    }
+
+                    // Check if the image is grayscale
+                    const response = await fetch("/api/is_grayscale", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.is_grayscale) {
+                        alert("Selected image is NOT RGB. Sketch & Paint mode is not allowed.");
+                        location.reload();
+                        return;
+                    }
+
+                    // If not grayscale, proceed to convert to SVG
+                    const svgFormData = new FormData();
+                    if (isUploaded && uploadedFile) {
+                        svgFormData.append("image", uploadedFile);
+                    } else {
+                        const res = await fetch(lastImgSrc);
+                        const blob = await res.blob();
+                        svgFormData.append("image", new File([blob], lastFilename));
+                    }
+
+                    const svgResponse = await fetch("/api/convert_sketchNpaint_to_svg", {
+                        method: "POST",
+                        body: svgFormData
+                    });
+
+                    const svgResult = await svgResponse.json();
+
+                    if (!svgResult.success) {
+                        alert("SVG conversion failed: " + svgResult.error);
+                    }
+
+
+                }
+                catch (err) {
+                    console.error("Sketch & Paint mode processing failed:", err);
+                    alert("Error processing sketch & paint mode.");
+                }
+            }
+
+            renderBtn.disabled = false;
+
+            const baseName = lastFilename.substring(0, lastFilename.lastIndexOf('.'));
+
+            let modeFolder = "";
+            switch (selectedMode) {
+                case "color":
+                    modeFolder = "animate_color_output";
+                    modeFile = "animate_sequence-" + baseName + ".html"
+                    break;
+                case "sketch":
+                    modeFolder = "animate_sketch_output";
+                    modeFile = "animate_sequence-" + baseName + ".html"
+                    break;
+                case "layered":
+                    modeFolder = "animate_layered_output";
+                    modeFile = "animate_" + baseName + ".html"
+                    break;
+                case "sketchNpaint":
+                    modeFolder = "animate_sNp_output";
+                    modeFile = "animate_sequence-" + baseName + "-combined.html"
+                    break;
+                default:
+                    console.error("Unknown mode:", selectedMode);
+                    return;
+            }
+
+            const iframe = document.createElement("iframe");
+            iframe.src = `/static/${modeFolder}/${modeFile}`;
+            iframe.style.width = "100%";
+            iframe.style.height = "100%";
+            iframe.style.border = "none";
+
+            const renderPanel = document.getElementById("renderContainer");
+            renderPanel.innerHTML = "";
+            renderPanel.appendChild(iframe);
+        }
+        function openRenderPage() {
+            if (!lastImgSrc || !lastFilename) return;
+
+            const baseName = lastFilename.substring(0, lastFilename.lastIndexOf('.'));
+
+            let modeFolder = "";
+            switch (selectedMode) {
+                case "color":
+                    modeFolder = "animate_color_output";
+                    modeFile = "animate_sequence-" + baseName + ".html"
+                    break;
+                case "sketch":
+                    modeFolder = "animate_sketch_output";
+                    modeFile = "animate_sequence-" + baseName + ".html"
+                    break;
+                case "layered":
+                    modeFolder = "animate_layered_output";
+                    modeFile = "animate_" + baseName + ".html"
+                    break;
+                case "sketchNpaint":
+                    modeFolder = "animate_sNp_output";
+                    modeFile = "animate_sequence-" + baseName + "-combined.html"
+                    break;
+                default:
+                    console.error("Unknown mode:", selectedMode);
+                    return;
+            }
+
+            window.open(`/render?file=${modeFile}&mode=${modeFolder}`, '_blank');
+        }
+
+    </script>
+
+
+    <!-- JavaScript: Handles image loading, rendering, and interactivity -->
+
+
+</body>
+
+</html>
