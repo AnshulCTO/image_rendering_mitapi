@@ -121,6 +121,7 @@ def generate_animated_html(svg_path, output_html_folder):
     <option value="3">3.0x</option>
     <option value="5">5.0x</option>
     <option value="10" selected>10.0x</option>
+    <option value="20">20.0x</option>
   </select>
   <input type="range" id="progressBar" value="0" min="0" max="100">
 </div>

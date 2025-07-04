@@ -159,7 +159,7 @@ def convert_to_svg():
         f"/static/animate_color_output/{os.path.basename(animated_html_path)}"
     )
     elapsed = time.time() - start_time
-    print(f"Total time taken by color mode: {elapsed:.2f} seconds")
+    print(f"Total time taken by this mode: {elapsed:.2f} seconds")
     return jsonify(
         {
             "success": True,
@@ -172,6 +172,7 @@ def convert_to_svg():
 # sketch mode
 @app.route("/api/convert_sketch_to_svg", methods=["POST"])
 def convert_sketch_to_svg():
+    start_time = time.time()
     if "image" not in request.files:
         return jsonify({"error": "No image provided"}), 400
 
@@ -195,7 +196,7 @@ def convert_sketch_to_svg():
     # Step 2: Convert to BW
     try:
         image = Image.open(tmp_path).convert("L")
-        bw_image = image.point(lambda p: 255 if p > 180 else 0)
+        bw_image = image.point(lambda p: 255 if p > 150 else 0)
 
         # Make white pixels transparent
         rgba_image = bw_image.convert("RGBA")
@@ -259,12 +260,13 @@ def convert_sketch_to_svg():
     animate_sketch_output_folder = os.path.join("static", "animate_sketch_output")
     os.makedirs(animate_sketch_output_folder, exist_ok=True)
     animated_html_path = generate_animated_html(
-        sequence_output_path, animate_sketch_output_folder, f"/{sequence_output_path}"
+        sequence_output_path, animate_sketch_output_folder
     )
     animated_html_url = (
         f"/static/animate_sketch_output/{os.path.basename(animated_html_path)}"
     )
-
+    elapsed = time.time() - start_time
+    print(f"Total time taken by this mode: {elapsed:.2f} seconds")
     return jsonify(
         {
             "success": True,
@@ -276,6 +278,7 @@ def convert_sketch_to_svg():
 
 @app.route("/api/convert_color_to_sketch_to_svg", methods=["POST"])
 def convert_color_to_sketch_to_svg():
+    start_time = time.time()
     if "image" not in request.files:
         return jsonify({"error": "No image provided"}), 400
 
@@ -350,7 +353,7 @@ def convert_color_to_sketch_to_svg():
                 f"Resized ML output to original dimensions: Width={image.width}, Height={image.height}"
             )
 
-        bw_image = image.point(lambda p: 255 if p > 180 else 0)
+        bw_image = image.point(lambda p: 255 if p > 150 else 0)
         bw_image.save(bw_path)
 
         sketch_svg_path = os.path.join("static", "svg_sketch", f"{base_name}.svg")
@@ -390,12 +393,13 @@ def convert_color_to_sketch_to_svg():
         animate_sketch_output_folder = os.path.join("static", "animate_sketch_output")
         os.makedirs(animate_sketch_output_folder, exist_ok=True)
         animated_html_path = generate_animated_html(
-            sketch_seq_svg, animate_sketch_output_folder, f"/{sketch_seq_svg}"
+            sketch_seq_svg, animate_sketch_output_folder
         )
         animated_html_url = (
             f"/static/animate_sketch_output/{os.path.basename(animated_html_path)}"
         )
-
+        elapsed = time.time() - start_time
+        print(f"Total time taken by this mode: {elapsed:.2f} seconds")
         return jsonify(
             {
                 "success": True,
@@ -416,6 +420,7 @@ def convert_color_to_sketch_to_svg():
 # Layered
 @app.route("/api/convert_layered_to_svg", methods=["POST"])
 def convert_layered_to_svg():
+    start_time = time.time()
     if "image" not in request.files:
         return jsonify({"error": "No image provided"}), 400
 
@@ -465,11 +470,13 @@ def convert_layered_to_svg():
     animate_layered_output_folder = os.path.join("static", "animate_layered_output")
     os.makedirs(animate_layered_output_folder, exist_ok=True)
     animated_html_path = generate_animated_html(
-        output_path, animate_layered_output_folder, f"/{output_path}"
+        output_path, animate_layered_output_folder
     )
     animated_html_url = (
         f"/static/animate_layered_output/{os.path.basename(animated_html_path)}"
     )
+    elapsed = time.time() - start_time
+    print(f"Total time taken by this mode: {elapsed:.2f} seconds")
     return jsonify(
         {
             "success": True,
@@ -481,6 +488,7 @@ def convert_layered_to_svg():
 
 @app.route("/api/convert_sketchNpaint_to_svg", methods=["POST"])
 def convert_sketchNpaint_to_svg():
+    start_time = time.time()
     if "image" not in request.files:
         return jsonify({"error": "No image provided"}), 400
 
@@ -600,7 +608,7 @@ def convert_sketchNpaint_to_svg():
                 f"Resized ML output to original dimensions: Width={image.width}, Height={image.height}"
             )
 
-        bw_image = image.point(lambda p: 255 if p > 180 else 0)
+        bw_image = image.point(lambda p: 255 if p > 150 else 0)
         bw_image.save(bw_path)
 
         sketch_svg_path = os.path.join(
@@ -660,12 +668,13 @@ def convert_sketchNpaint_to_svg():
     animate_sketch_output_folder = os.path.join("static", "animate_sNp_output")
     os.makedirs(animate_sketch_output_folder, exist_ok=True)
     animated_html_path = generate_animated_html(
-        combined_svg_file, animate_sketch_output_folder, f"/{combined_svg_file}"
+        combined_svg_file, animate_sketch_output_folder
     )
     animated_html_url = (
         f"/static/animate_sNp_output/{os.path.basename(animated_html_path)}"
     )
-
+    elapsed = time.time() - start_time
+    print(f"Total time taken by this mode: {elapsed:.2f} seconds")
     return jsonify(
         {
             "success": True,
