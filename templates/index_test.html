@@ -264,14 +264,7 @@
                     const result = await grayCheck.json();
                     isGrayscale = result.is_grayscale;
 
-                    if (selectedMode === "color" && isGrayscale) {
-                        alert("Selected image is NOT RGB. Color mode not allowed.");
-                        return;
-                    }
-                    if (selectedMode === "sketchNpaint" && isGrayscale) {
-                        alert("Image must be RGB for Sketch & Paint.");
-                        return;
-                    }
+                    
                 }
 
                 // Choose correct endpoint
